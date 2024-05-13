@@ -64,10 +64,10 @@
         img.onload = function () {
           console.log(this.width, this.height);
           if (this.width > this.height) {
-            canvasWidth = 900;
+            canvasWidth = 1200;
             canvasHeight = this.height * (canvasWidth / this.width);
           } else {
-            canvasHeight = 900;
+            canvasHeight = 1200;
             canvasWidth = this.width * (canvasHeight / this.height);
           }
           canvas.width = canvasWidth;
