@@ -7,10 +7,13 @@
     <p>1. 透かしの文字を入力</p>
     <div><input type="text" id="input" name="copyright" /></div>
     <p>2. ファイルのアップロード</p>
-    <div class="upload"><input type="file" name="file" id="file" /></div>
+    <div class="upload">
+      <input type="file" name="file" id="file" />
+      <span id="msg"></span>
+    </div>
     <p>3. ツイート</p>
     <br />
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" hidden></canvas>
 
     <script>
       const file = document.getElementById("file");
@@ -18,12 +21,14 @@
       let input = document.getElementById("input");
       const download = document.getElementById("download");
       const params = new URLSearchParams(location.search);
+      const msg = document.getElementById("msg");
+
       input.value = params.get("copy");
 
       // ファイルが指定された時にloadLocalImage()を実行
       file.addEventListener("change", loadLocalImage, false);
 
-      let canvasWidth = 1200;
+      let canvasWidth = 1300;
       let canvasHeight = 900;
       let uploadImgSrc;
       let filename;
@@ -64,12 +69,14 @@
         img.onload = function () {
           console.log(this.width, this.height);
           if (this.width > this.height) {
-            canvasWidth = 1200;
+            canvasWidth = 3600;
             canvasHeight = this.height * (canvasWidth / this.width);
           } else {
-            canvasHeight = 1200;
+            canvasHeight = 3600;
             canvasWidth = this.width * (canvasHeight / this.height);
           }
+          canvasHeight = this.height;
+          canvasWidth = this.width;
           canvas.width = canvasWidth;
           canvas.height = canvasHeight;
 
@@ -79,9 +86,9 @@
         };
       }
 
-      const margin = 10;
-      const tx_height = 26;
-      const tx_width = 230;
+      const margin = 40;
+      const tx_height = 100;
+      const tx_width = 800;
 
       function addText() {
         ctx.fillStyle = "#ffffff";
@@ -92,7 +99,7 @@
           tx_height
         );
 
-        ctx.font = "14px 'MS Pゴシック'";
+        ctx.font = "48px 'MS Pゴシック'";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#000000";
@@ -107,6 +114,7 @@
       function downloadFile() {
         let link = document.createElement("a");
         link.href = canvas.toDataURL("image/jpeg");
+        msg.innerHTML = "ファイルをダウンロードしました";
         link.download = "nss_" + filename;
         link.click();
       }
