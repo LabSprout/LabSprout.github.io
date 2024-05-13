@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>透かし入れソフト</title>
+  </head>
+  <body>
+    <p>1. 透かしの文字を入力</p>
+    <div><input type="text" id="input" name="copyright" /></div>
+    <p>2. ファイルのアップロード</p>
+    <div class="upload"><input type="file" name="file" id="file" /></div>
+    <p>3. ツイート</p>
+    <br />
+    <canvas id="canvas"></canvas>
+
+    <script>
+      const file = document.getElementById("file");
+      let canvas = document.getElementById("canvas");
+      let input = document.getElementById("input");
+      const download = document.getElementById("download");
+      const params = new URLSearchParams(location.search);
+      input.value = params.get("copy");
+
+      // ファイルが指定された時にloadLocalImage()を実行
+      file.addEventListener("change", loadLocalImage, false);
+
+      let canvasWidth = 1200;
+      let canvasHeight = 900;
+      let uploadImgSrc;
+      let filename;
+
+      // Canvasの準備
+      let ctx = canvas.getContext("2d");
+
+      function loadLocalImage(e) {
+        // ファイル情報を取得
+        let fileData = e.target.files[0];
+
+        // 画像ファイル以外は処理を止める
+        if (!fileData.type.match("image.*")) {
+          alert("画像を選択してください");
+          return;
+        }
+
+        // FileReaderオブジェクトを使ってファイル読み込み
+        let reader = new FileReader();
+        // ファイル読み込みに成功したときの処理
+        reader.onload = function () {
+          // Canvas上に表示する
+          uploadImgSrc = reader.result;
+          canvasDraw();
+        };
+        // ファイル読み込みを実行
+        reader.readAsDataURL(fileData);
+      }
+
+      // Canvas上に画像を表示する
+      function canvasDraw() {
+        // Canvas上に画像を表示
+        let img = new Image();
+        img.src = uploadImgSrc;
+        filename = file.value.split("\\").pop();
+        console.log(filename);
+
+        img.onload = function () {
+          console.log(this.width, this.height);
+          if (this.width > this.height) {
+            canvasWidth = 900;
+            canvasHeight = this.height * (canvasWidth / this.width);
+          } else {
+            canvasHeight = 900;
+            canvasWidth = this.width * (canvasHeight / this.height);
+          }
+          canvas.width = canvasWidth;
+          canvas.height = canvasHeight;
+
+          ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+          ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+          addText();
+        };
+      }
+
+      const margin = 10;
+      const tx_height = 26;
+      const tx_width = 230;
+
+      function addText() {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(
+          canvasWidth - tx_width - margin,
+          canvasHeight - tx_height - margin,
+          tx_width,
+          tx_height
+        );
+
+        ctx.font = "14px 'MS Pゴシック'";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#000000";
+        ctx.fillText(
+          input.value,
+          canvasWidth - tx_width / 2 - margin,
+          canvasHeight - tx_height / 2 - margin
+        );
+        downloadFile();
+      }
+
+      function downloadFile() {
+        let link = document.createElement("a");
+        link.href = canvas.toDataURL("image/jpeg");
+        link.download = "nss_" + filename;
+        link.click();
+      }
+    </script>
+  </body>
+</html>
