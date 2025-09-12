@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Airports</title>
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; }
+    #container { position: relative; width: 100%; height: 100%; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    #graphCanvas { position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="map"></div>
+  </div>
+  <div style="position: absolute; top: 10px; left: 10px; max-height: 50vh; overflow-y: auto;">
+    <p><label for="date-input">表示日付:</label>
+    <input type="date" id="date-input" value="2025-06-03" /></p>
+    <!-- スペースを開ける-->
+    <div id="info-panel">
+    </div>
+    </div>
+  </div>
+  <div id="note-panel">
+  <label for="note">📝 メモ:</label><br>
+  <textarea id="note" placeholder="ここにメモを書けます…" rows="6"></textarea>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
+
+<style>
+  /* 全体のスタイル */
+  /*
+  body {
+    font-size: 12px;
+  }
+*/
+
+  table {
+    width: 25vw;
+    border-collapse: collapse;
+    text-align: center;
+  }
+
+  th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+  }
+
+  /* 2列目は内容に合わせて幅を自動に */
+  th:nth-child(2),
+  td:nth-child(2) {
+    white-space: nowrap;
+    width: 1px; /* コンテンツの幅にフィットさせる */
+  }
+
+  /* 残りの列（1列目・3列目）は均等に分ける */
+  th:nth-child(1),
+  th:nth-child(3),
+  td:nth-child(1),
+  td:nth-child(3) {
+    width: auto;
+  }
+
+  thead {
+    background-color: #f2f2f2;
+    font-weight: bold;
+  }
+
+  tbody tr:nth-child(even) {
+    background-color: #f8f8f8;
+  }
+
+  tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+#note-panel {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 20vw;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 8px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+#note {
+  width: 100%;
+  height: 200px;
+  resize: vertical;
+  font-size: 12px;
+  padding: 5px;
+  box-sizing: border-box;
+}
+
+</style>
