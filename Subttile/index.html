@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube 字幕作成エディタ</title>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 20px; display: flex; flex-direction: column; align-items: center; background-color: #f4f7f6; }
+    
+    #player-wrapper { position: relative; width: 640px; height: 360px; margin-bottom: 20px; background: #000; overflow: hidden; }
+    #player-container { width: 100%; height: 100%; }
+    
+    #subtitle-overlay {
+      position: absolute;
+      bottom: 40px;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+      text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 2px 0 0 #000, -2px 0 0 #000;
+      pointer-events: none; 
+      z-index: 10;
+      padding: 0 20px;
+      box-sizing: border-box;
+      white-space: pre-wrap;
+    }
+    
+    .status-panel { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; width: 100%; max-width: 640px; border-left: 5px solid #007bff; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
+    .time-val { font-family: monospace; font-weight: bold; color: #007bff; }
+    
+    .index-control { display: flex; align-items: center; gap: 10px; background: #e9ecef; padding: 10px; border-radius: 6px; margin-bottom: 15px; }
+    .index-input { width: 60px; padding: 5px; text-align: center; font-weight: bold; font-size: 1.1rem; }
+
+    .guide { font-size: 0.85rem; color: #666; margin-bottom: 15px; background: #eee; padding: 10px; border-radius: 4px; line-height: 1.6; max-width: 640px; }
+    kbd { background: #eee; border-radius: 3px; border: 1px solid #b4b4b4; padding: 1px 4px; font-family: monospace; font-weight: bold; }
+
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+    button { padding: 12px 20px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+    .btn-start { background: #6c757d; color: white; }
+    .btn-end { background: #28a745; color: white; }
+    .btn-small { padding: 5px 10px; background: #dee2e6; color: #333; font-size: 0.8rem; }
+    button:hover { opacity: 0.8; }
+    
+    .editor-container { display: flex; gap: 20px; width: 100%; max-width: 900px; }
+    .text-column { flex: 1; display: flex; flex-direction: column; }
+    label { font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; color: #555; }
+    textarea { width: 100%; height: 350px; font-family: 'Consolas', monospace; padding: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; line-height: 1.4; }
+    #source-text { border-color: #007bff; }
+  </style>
+</head>
+<body>
+
+  <div class="guide">
+    <kbd>Space</kbd> 再生/停止 | <kbd>S</kbd> 開始時間 | <kbd>D</kbd> 終了時間<br>
+    <kbd>J</kbd> 1秒戻る | <kbd>K</kbd> 1秒進む | <kbd>E</kbd> テキスト編集を抜ける
+  </div>
+
+  <div id="player-wrapper">
+    <div id="player-container">
+      <div id="player"></div>
+    </div>
+    <div id="subtitle-overlay"></div>
+  </div>
+
+  <div class="status-panel">
+    <div>再生位置: <span id="live-time" class="time-val">00:00:00,000</span></div>
+    <div>字幕開始: <span id="pending-start" class="time-val">未設定</span></div>
+  </div>
+
+  <div class="controls">
+    <div class="index-control">
+      <span>次のインデックス番号:</span>
+      <button class="btn-small" onclick="adjustIndex(-1)">-</button>
+      <input type="number" id="index-input" class="index-input" value="1" min="1" onchange="updateIndex(this.value)">
+      <button class="btn-small" onclick="adjustIndex(1)">+</button>
+    </div>
+    <div style="flex-grow: 1;">
+      <button class="btn-start" onclick="setStartTime()">字幕開始 (S)</button>
+      <button class="btn-end" onclick="setEndTimeAndInsert()">字幕終了 (D)</button>
+    </div>
+  </div>
+
+
+  <div class="editor-container">
+    <div class="text-column">
+      <label>▼ 1. 字幕のデータ（空行で区切り）</label>
+      <textarea id="source-text" placeholder="ここにセリフを入力..."></textarea>
+    </div>
+    <div class="text-column">
+      <label>▼ 2. SRT出力結果</label>
+      <textarea id="subtitle-area" placeholder="ここにSRT形式で出力されます..."></textarea>
+    </div>
+  </div>
+
+  <script>
+    let player;
+    let subtitleCount = 1;
+    let currentStartTimeRaw = 0;
+    const SKIP_TIME = 1; 
+    
+    const liveTimeDisp = document.getElementById('live-time');
+    const pendingStartDisp = document.getElementById('pending-start');
+    const sourceText = document.getElementById('source-text');
+    const subtitleArea = document.getElementById('subtitle-area');
+    const indexInput = document.getElementById('index-input');
+    const subtitleOverlay = document.getElementById('subtitle-overlay');
+
+    // URLから動画IDを取得する関数
+    function getYouTubeIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      // ?id=xxxx または ?v=xxxx をチェック
+      return params.get('id') || params.get('v') || 'jNQXAC9IVRw'; // デフォルトID
+    }
+
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    function onYouTubeIframeAPIReady() {
+      const videoId = getYouTubeIdFromUrl();
+      player = new YT.Player('player', {
+        height: '360', width: '640', videoId: videoId,
+        playerVars: { 
+          'rel': 0, 
+          'modestbranding': 1, 
+          'iv_load_policy': 3, 
+          'disablekb': 1 
+        },
+        events: { 'onReady': onPlayerReady }
+      });
+    }
+
+    function onPlayerReady() {
+      setInterval(() => {
+        if (player && player.getCurrentTime && typeof player.getCurrentTime === 'function') {
+          const currentTime = player.getCurrentTime();
+          liveTimeDisp.innerText = formatTime(currentTime);
+          updateSubtitlePreview(currentTime);
+        }
+      }, 50);
+    }
+
+    function updateSubtitlePreview(currentTime) {
+      const srtText = subtitleArea.value;
+      const blocks = srtText.split(/\n\s*\n/);
+      let foundText = "";
+
+      for (const block of blocks) {
+        const lines = block.trim().split('\n');
+        if (lines.length >= 3) {
+          const timeMatch = lines[1].match(/(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})/);
+          if (timeMatch) {
+            const startSec = parseSrtTime(timeMatch[1]);
+            const endSec = parseSrtTime(timeMatch[2]);
+            if (currentTime >= startSec && currentTime <= endSec) {
+              foundText = lines.slice(2).join('\n');
+              break;
+            }
+          }
+        }
+      }
+      subtitleOverlay.innerText = foundText;
+    }
+
+    function parseSrtTime(timeStr) {
+      const [hms, ms] = timeStr.split(',');
+      const [h, m, s] = hms.split(':').map(Number);
+      return h * 3600 + m * 60 + s + Number(ms) / 1000;
+    }
+
+    function formatTime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const ms = Math.floor((seconds % 1) * 1000);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+    }
+
+    function updateIndex(val) { subtitleCount = parseInt(val) || 1; }
+    function adjustIndex(delta) { subtitleCount = Math.max(1, subtitleCount + delta); indexInput.value = subtitleCount; }
+    function resetIndex() { subtitleCount = 1; indexInput.value = subtitleCount; }
+
+    function togglePlay() {
+      const state = player.getPlayerState();
+      if (state === YT.PlayerState.PLAYING) player.pauseVideo();
+      else player.playVideo();
+    }
+
+    function skip(seconds) {
+      if (!player) return;
+      const currentTime = player.getCurrentTime();
+      player.seekTo(currentTime + seconds, true);
+    }
+
+    function setStartTime() {
+      currentStartTimeRaw = player.getCurrentTime();
+      pendingStartDisp.innerText = formatTime(currentStartTimeRaw);
+    }
+
+    function setEndTimeAndInsert() {
+      const endTimeRaw = player.getCurrentTime();
+      const startTimeStr = formatTime(currentStartTimeRaw);
+      const endTimeStr = formatTime(endTimeRaw);
+
+      const rawText = sourceText.value.trimStart();
+      const sections = rawText.split(/\n\s*\n/); 
+      
+      const currentSubtitleContent = (sections.length > 0 && sections[0] !== "") ? sections[0].trim() : "";
+      sourceText.value = sections.slice(1).join('\n\n');
+
+      const entry = `${subtitleCount}\n${startTimeStr} --> ${endTimeStr}\n${currentSubtitleContent}\n\n`;
+      
+      subtitleArea.value += entry;
+      subtitleCount++;
+      indexInput.value = subtitleCount;
+      
+      currentStartTimeRaw = endTimeRaw; 
+      pendingStartDisp.innerText = formatTime(currentStartTimeRaw);
+      subtitleArea.scrollTop = subtitleArea.scrollHeight;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (document.activeElement === subtitleArea || document.activeElement === sourceText || document.activeElement === indexInput) {
+        if (key === 'e') { e.preventDefault(); document.activeElement.blur(); }
+        return;
+      }
+      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      else if (key === 'j') { e.preventDefault(); skip(-SKIP_TIME); }
+      else if (key === 'k') { e.preventDefault(); skip(SKIP_TIME); }
+      else if (key === 's') { setStartTime(); }
+      else if (key === 'd') { setEndTimeAndInsert(); }
+    });
+  </script>
+</body>
+</html>
