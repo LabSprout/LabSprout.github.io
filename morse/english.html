@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>モールス暗記帳（欧文）</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: #eef2f7; padding: 10px; color: #333; margin: 0; }
+        .container { max-width: 700px; margin: 0 auto; }
+        
+        .card { background: white; border-radius: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); padding: 20px; margin: 10px auto; }
+        .question-box { height: 70px; display: flex; flex-direction: column; justify-content: center; position: relative; }
+        .morse-code { font-size: 2rem; letter-spacing: 4px; color: #007bff; font-weight: bold; margin: 0; word-break: break-all; }
+        
+        .is-hidden { visibility: hidden !important; opacity: 0 !important; }
+        .audio-only-label { font-size: 1rem; color: #999; font-style: italic; position: absolute; width: 100%; }
+        
+        .answer-box { height: 140px; margin: 15px 0; border-top: 1px solid #eee; display: flex; flex-direction: column; justify-content: center; visibility: hidden; opacity: 0; }
+        .answer-box.visible { visibility: visible; opacity: 1; }
+        .char { font-size: 2.5rem; font-weight: bold; color: #222; }
+        .mnemonic { font-size: 1.3rem; color: #ff4081; margin-top: 5px; font-weight: bold; }
+
+        /* コントロールエリア */
+        .controls { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; }
+        .btn-group { display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap; }
+        
+        button { border: none; padding: 12px 15px; border-radius: 25px; font-size: 1rem; cursor: pointer; transition: 0.2s; box-sizing: border-box; }
+        .btn-main { background-color: #007bff; color: white; width: 90%; max-width: 300px; font-weight: bold; }
+        .btn-sub { background-color: #6c757d; color: white; font-size: 0.9rem; min-width: 120px; }
+        
+        .judge-btns { display: none; gap: 10px; width: 100%; justify-content: center; }
+        .btn-correct { background-color: #28a745; color: white; flex: 1; max-width: 140px; }
+        .btn-wrong { background-color: #dc3545; color: white; flex: 1; max-width: 140px; }
+
+        /* 設定エリア */
+        .settings-panel { background: #dfe6ed; padding: 12px; border-radius: 12px; margin-bottom: 10px; font-size: 0.85rem; }
+        .setting-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+        select { padding: 5px; border-radius: 5px; border: 1px solid #ccc; font-size: 0.85rem; }
+
+        /* リスト表示エリア */
+        .stats-container { margin-top: 20px; padding: 15px; background: white; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .stats-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .stats-title { font-size: 0.9rem; font-weight: bold; color: #666; width: 100%; text-align: left; }
+        .bulk-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+        .btn-tiny { font-size: 0.7rem; padding: 5px 8px; border-radius: 4px; background: #eee; cursor: pointer; border: 1px solid #ccc; }
+        .input-num { width: 40px; padding: 3px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid #ccc; }
+        
+        .list-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; min-width: 450px; border-collapse: collapse; font-size: 0.8rem; text-align: left; }
+        th, td { padding: 8px; border-bottom: 1px solid #eee; }
+        .td-code { font-family: monospace; font-weight: bold; color: #007bff; font-size: 1rem; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>欧文モールス暗記帳</h1>
+
+        <div class="settings-panel">
+            <div class="setting-row">
+                <label><input type="checkbox" id="autoPlay" checked> 音声を鳴らす</label>
+                <label><input type="checkbox" id="showCode" checked onchange="updateView()"> 符号を表示</label>
+            </div>
+            <div class="setting-row">
+                <span>速度モード:</span>
+                <select id="speedPreset" onchange="updateSpeed()">
+                    <option value="120">練習用（ゆっくり）</option>
+                    <option value="75">欧文暗語相当 (80字/分)</option>
+                    <option value="60">欧文普通語相当 (100字/分)</option>
+                    <option value="45">超速（エキスパート）</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="question-box">
+                <div id="audioLabel" class="audio-only-label" style="display:none;">👂 音を聴いてください</div>
+                <div id="displayCode" class="morse-code"></div>
+            </div>
+
+            <div id="answerArea" class="answer-box">
+                <div id="displayChar" class="char"></div>
+                <div id="displayMnemonic" class="mnemonic"></div>
+                <div id="displayCodeInAnswer" style="color:#666; margin-top:5px; font-weight:bold; letter-spacing: 2px;"></div>
+            </div>
+            
+            <div class="controls">
+                <button id="btnShow" class="btn-main" onclick="showAnswer()">回答を表示</button>
+                <div id="judgeArea" class="judge-btns">
+                    <button class="btn-wrong" onclick="recordResult(false)">不正解</button>
+                    <button class="btn-correct" onclick="recordResult(true)">正解！</button>
+                </div>
+                <button class="btn-sub" onclick="playCurrentCode()">音を聴き直す</button>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stats-header">
+                <div class="stats-title">出題範囲設定</div>
+                <div class="bulk-actions">
+                    <button class="btn-tiny" onclick="setAll(true)">全選択</button>
+                    <button class="btn-tiny" onclick="setAll(false)">全解除</button>
+                    <span style="font-size: 0.7rem;">ランダム数:</span>
+                    <input type="number" id="randomCount" class="input-num" value="8" min="1" max="42">
+                    <button class="btn-tiny" onclick="selectRandomCustom()">選択</button>
+                </div>
+            </div>
+            <div class="list-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>出題</th><th>文字</th><th>符号</th><th>合調音</th><th>正答</th></tr>
+                    </thead>
+                    <tbody id="statsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // データ定義
+        const morseData = [
+            { char: "A", code: ".-", mnemonic: "亜鈴（アレー）", score: 0, active: true },
+            { char: "B", code: "-...", mnemonic: "棒倒す（ボーダオス）", score: 0, active: true },
+            { char: "C", code: "-.-.", mnemonic: "チャートルーム", score: 0, active: true },
+            { char: "D", code: "-..", mnemonic: "道徳（ドートク）", score: 0, active: true },
+            { char: "E", code: ".", mnemonic: "絵（エ）", score: 0, active: true },
+            { char: "F", code: "..-.", mnemonic: "古道具（フルドーグ）", score: 0, active: true },
+            { char: "G", code: "--.", mnemonic: "強情だ（ゴージョーダ）", score: 0, active: true },
+            { char: "H", code: "....", mnemonic: "ハイカラ", score: 0, active: true },
+            { char: "I", code: "..", mnemonic: "石（イシ）", score: 0, active: true },
+            { char: "J", code: ".---", mnemonic: "自衛方法（ジエーホーホー）", score: 0, active: true },
+            { char: "K", code: "-.-", mnemonic: "警視庁（ケーシチョー）", score: 0, active: true },
+            { char: "L", code: ".-..", mnemonic: "流浪する（ルロースル）", score: 0, active: true },
+            { char: "M", code: "--", mnemonic: "メーデー", score: 0, active: true },
+            { char: "N", code: "-.", mnemonic: "ノート", score: 0, active: true },
+            { char: "O", code: "---", mnemonic: "応急法（オーキューホー）", score: 0, active: true },
+            { char: "P", code: ".--.", mnemonic: "play ball（プレーボール）", score: 0, active: true },
+            { char: "Q", code: "--.-", mnemonic: "救急至急（キューキューシキュー）", score: 0, active: true },
+            { char: "R", code: ".-.", mnemonic: "レコード", score: 0, active: true },
+            { char: "S", code: "...", mnemonic: "進め（ススメ）", score: 0, active: true },
+            { char: "T", code: "-", mnemonic: "ティー", score: 0, active: true },
+            { char: "U", code: "..-", mnemonic: "疑ごう（ウタゴー）", score: 0, active: true },
+            { char: "V", code: "...-", mnemonic: "ビクトリー", score: 0, active: true },
+            { char: "W", code: ".--", mnemonic: "和洋風（ワヨーフー）", score: 0, active: true },
+            { char: "X", code: "-..-", mnemonic: "X ray（イーエクスレー）", score: 0, active: true },
+            { char: "Y", code: "-.--", mnemonic: "養子孝行（ヨーシコーコー）", score: 0, active: true },
+            { char: "Z", code: "--..", mnemonic: "ざーざー雨", score: 0, active: true },
+            { char: "1", code: ".----", mnemonic: "（数字の1）", score: 0, active: true },
+            { char: "2", code: "..---", mnemonic: "（数字の2）", score: 0, active: true },
+            { char: "3", code: "...--", mnemonic: "（数字の3）", score: 0, active: true },
+            { char: "4", code: "....-", mnemonic: "（数字の4）", score: 0, active: true },
+            { char: "5", code: ".....", mnemonic: "（数字の5）", score: 0, active: true },
+            { char: "6", code: "-....", mnemonic: "（数字の6）", score: 0, active: true },
+            { char: "7", code: "--...", mnemonic: "（数字の7）", score: 0, active: true },
+            { char: "8", code: "---..", mnemonic: "（数字の8）", score: 0, active: true },
+            { char: "9", code: "----.", mnemonic: "（数字の9）", score: 0, active: true },
+            { char: "0", code: "-----", mnemonic: "（数字の0）", score: 0, active: true },
+            { char: "?", code: "..--..", mnemonic: "（疑問符）", score: 0, active: true },
+            { char: "AR", code: ".-.-.", mnemonic: "送信終了後", score: 0, active: true },
+            { char: "AS", code: ".-...", mnemonic: "お待ち下さい", score: 0, active: true },
+            { char: "VA", code: "...-.-", mnemonic: "通信完了符号", score: 0, active: true },
+            { char: "OSO", code: "---...---", mnemonic: "非常符号", score: 0, active: true },
+            { char: "HH", code: "........", mnemonic: "訂正符号", score: 0, active: true }
+
+        ];
+
+        let currentItem = null;
+        let audioCtx = null;
+        let isShowingAnswer = false;
+        let dotDuration = 120; // デフォルト 120ms
+
+        function formatMorse(code) { return code.replace(/\./g, '・').replace(/-/g, 'ー'); }
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        function updateSpeed() { dotDuration = parseInt(document.getElementById('speedPreset').value); }
+
+        async function playCurrentCode() {
+            initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            for (const symbol of currentItem.code) {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(750, audioCtx.currentTime);
+                
+                // プッというノイズを防ぐためのエンベロープ
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.005);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                
+                const duration = (symbol === '.') ? dotDuration : dotDuration * 3;
+                await new Promise(r => setTimeout(r, duration));
+                
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.005);
+                oscillator.stop(audioCtx.currentTime + 0.01);
+                await new Promise(r => setTimeout(r, dotDuration)); // 符号内の間隔 (1ドット分)
+            }
+        }
+
+        function updateStatsUI() {
+            const tbody = document.getElementById('statsTableBody');
+            tbody.innerHTML = '';
+            morseData.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.style.opacity = item.active ? '1' : '0.4';
+                tr.innerHTML = `
+                    <td><input type="checkbox" ${item.active ? 'checked' : ''} onchange="toggleItem(${index})"></td>
+                    <td><strong>${item.char}</strong></td>
+                    <td class="td-code">${formatMorse(item.code)}</td>
+                    <td>${item.mnemonic}</td>
+                    <td style="text-align:center">${item.score}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleItem(index) { morseData[index].active = !morseData[index].active; updateStatsUI(); }
+        function setAll(val) { morseData.forEach(item => item.active = val); updateStatsUI(); }
+        function selectRandomCustom() {
+            const num = parseInt(document.getElementById('randomCount').value) || 8;
+            setAll(false);
+            const shuffled = [...morseData].sort(() => 0.5 - Math.random());
+            for(let i=0; i < Math.min(num, morseData.length); i++) shuffled[i].active = true;
+            updateStatsUI();
+        }
+
+        function getNextItem() {
+            const activeItems = morseData.filter(d => d.active);
+            if (activeItems.length === 0) return morseData[0];
+            // 正解数が少ないものを優先する重み付け
+            const weights = activeItems.map(d => 1 / (d.score + 1));
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let random = Math.random() * totalWeight;
+            for (let i = 0; i < activeItems.length; i++) {
+                if (random < weights[i]) return activeItems[i];
+                random -= weights[i];
+            }
+            return activeItems[0];
+        }
+
+        function nextQuestion() {
+            isShowingAnswer = false;
+            document.getElementById('answerArea').classList.remove('visible');
+            document.getElementById('btnShow').style.display = 'block';
+            document.getElementById('judgeArea').style.display = 'none';
+            currentItem = getNextItem();
+            const formatted = formatMorse(currentItem.code);
+            document.getElementById('displayCode').innerText = formatted;
+            document.getElementById('displayChar').innerText = currentItem.char;
+            document.getElementById('displayMnemonic').innerText = currentItem.mnemonic;
+            document.getElementById('displayCodeInAnswer').innerText = formatted;
+            updateView();
+            updateStatsUI();
+            if (document.getElementById('autoPlay').checked) playCurrentCode();
+        }
+
+        function showAnswer() {
+            isShowingAnswer = true;
+            document.getElementById('answerArea').classList.add('visible');
+            document.getElementById('displayCode').classList.remove('is-hidden');
+            document.getElementById('audioLabel').style.display = 'none';
+            document.getElementById('btnShow').style.display = 'none';
+            document.getElementById('judgeArea').style.display = 'flex';
+        }
+
+        function recordResult(isCorrect) {
+            if (isCorrect) currentItem.score++; else currentItem.score = 0;
+            nextQuestion();
+        }
+
+        function updateView() {
+            const isShow = document.getElementById('showCode').checked;
+            if (!isShowingAnswer) {
+                document.getElementById('displayCode').classList.toggle('is-hidden', !isShow);
+                document.getElementById('audioLabel').style.display = isShow ? 'none' : 'block';
+            }
+        }
+
+        updateStatsUI();
+        nextQuestion();
+    </script>
+</body>
+</html>
